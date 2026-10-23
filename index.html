@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pixel Tracker Search</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SheetJS for Excel / CSV Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- JsBarcode Library for 1D Barcodes -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+    <!-- Google Fonts: Roboto -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            height: 100dvh;
+            max-height: 100dvh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #e9eef6;
+            color: #1f1f1f;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Material You Compact Phone Container */
+        .pixel-shell {
+            background-color: #ffffff;
+            width: 100%;
+            max-width: 420px;
+            height: 100dvh;
+            max-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            padding: 10px 12px;
+            margin: 0 auto;
+        }
+
+        @media (min-height: 700px) and (min-width: 480px) {
+            .pixel-shell {
+                height: 92dvh;
+                max-height: 820px;
+                border-radius: 32px;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+                border: 1px solid #e2e8f0;
+            }
+        }
+
+        /* Display Box - Flexible Flex item with min-h-0 so it never forces overflow */
+        .pixel-display {
+            background-color: #f0f4f9;
+            border-radius: 20px;
+            flex: 1 1 auto;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            padding: 8px 12px;
+            margin: 6px 0;
+        }
+
+        /* Keypad Buttons (Material You Light Compact) */
+        .btn-key {
+            background-color: #f8fafd;
+            color: #1f1f1f;
+            border-radius: 9999px;
+            height: 48px;
+            font-size: 1.35rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.08s ease;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            border: 1px solid #edf2f7;
+            cursor: pointer;
+        }
+
+        .btn-key:active {
+            transform: scale(0.93);
+            background-color: #d3e3fd;
+        }
+
+        .btn-action-clear {
+            background-color: #ffdad6;
+            color: #410002;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border-color: #f8b4b4;
+        }
+        .btn-action-clear:active {
+            background-color: #ffb4ab;
+        }
+
+        .btn-action-del {
+            background-color: #ffe08b;
+            color: #261900;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border-color: #f7d16f;
+        }
+        .btn-action-del:active {
+            background-color: #f7d16f;
+        }
+
+        .btn-search-primary {
+            background-color: #0b57d0; /* Google Blue */
+            color: #ffffff;
+            border-radius: 9999px;
+            height: 50px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: justify-center;
+            gap: 8px;
+            box-shadow: 0 4px 10px rgba(11, 87, 208, 0.22);
+            transition: all 0.1s ease;
+            cursor: pointer;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-search-primary:active {
+            transform: scale(0.97);
+            background-color: #0842a0;
+        }
+
+        /* Barcode Card */
+        .barcode-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 6px 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            border: 1px solid #e2e8f0;
+            width: 100%;
+            max-width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #barcode-svg {
+            max-width: 100%;
+            max-height: 55px;
+            height: auto;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center">
+
+    <!-- Screen Shell -->
+    <div class="pixel-shell">
+        
+        <!-- Top App Header -->
+        <header class="flex items-center justify-between pb-1.5 border-b border-gray-100 flex-shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-[#d3e3fd] flex items-center justify-center text-[#041e49]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-gray-900 leading-none">Pixel Tracker</h1>
+                    <p class="text-[10px] text-gray-500 font-medium">Barcode Search</p>
+                </div>
+            </div>
+
+            <!-- Upload Button -->
+            <label for="file-input" class="cursor-pointer bg-[#c2e7ff] hover:bg-[#b3dcf8] text-[#001d35] px-2.5 py-1 rounded-full text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span id="upload-status-text">Load File</span>
+            </label>
+            <input type="file" id="file-input" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleFileUpload(event)">
+        </header>
+
+        <!-- DISPLAY AREA (Flexible height, automatically fits screen) -->
+        <div class="pixel-display">
+            
+            <!-- VIEW 1: TYPING MODE -->
+            <div id="view-typing" class="w-full h-full flex flex-col justify-center items-end px-2">
+                <span class="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">Enter Tracking ID Digits</span>
+                <div id="typed-digits" class="text-4xl font-bold text-gray-900 break-all text-right transition-all"></div>
+                <p id="placeholder-hint" class="text-gray-400 text-sm font-normal">Use keypad below...</p>
+            </div>
+
+            <!-- VIEW 2: SEARCH RESULT MODE -->
+            <div id="view-result" class="hidden w-full h-full flex-col items-center justify-between py-0.5 text-center">
+                
+                <!-- BARCODE CONTAINER -->
+                <div class="barcode-card">
+                    <svg id="barcode-svg"></svg>
+                </div>
+
+                <!-- Large Order ID (Last 6 Digits) -->
+                <div class="w-full bg-white rounded-xl py-1 px-2 shadow-sm border border-gray-100">
+                    <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Order ID (Last 6 Digits)</span>
+                    <div id="res-order-last6" class="text-3xl font-black text-gray-900 tracking-tight leading-none"></div>
+                </div>
+
+                <!-- Full Details -->
+                <div class="text-left w-full bg-white/70 rounded-lg px-2 py-1 text-[10px] space-y-0.5 text-gray-600 border border-gray-100">
+                    <div class="truncate"><strong class="text-gray-800">TID:</strong> <span id="res-full-tid" class="font-mono text-gray-900"></span></div>
+                    <div class="truncate"><strong class="text-gray-800">Order ID:</strong> <span id="res-full-oid" class="font-mono text-gray-900"></span></div>
+                </div>
+
+                <!-- Reset / New Search Button -->
+                <button onclick="pressClear()" class="w-full py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-full transition-colors flex items-center justify-center gap-1 shadow-sm cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>New Search</span>
+                </button>
+            </div>
+
+            <!-- VIEW 3: ERROR / NOT FOUND MODE -->
+            <div id="view-error" class="hidden flex-col items-center justify-center p-2 text-center my-auto">
+                <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <p id="error-message-text" class="text-red-700 font-medium text-xs"></p>
+            </div>
+
+        </div>
+
+        <!-- KEYPAD AREA (Top to Bottom Layout, Fixed height) -->
+        <div class="flex-shrink-0 pt-1">
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <!-- Row 1 -->
+                <button class="btn-key" onclick="pressDigit('1')">1</button>
+                <button class="btn-key" onclick="pressDigit('2')">2</button>
+                <button class="btn-key" onclick="pressDigit('3')">3</button>
+
+                <!-- Row 2 -->
+                <button class="btn-key" onclick="pressDigit('4')">4</button>
+                <button class="btn-key" onclick="pressDigit('5')">5</button>
+                <button class="btn-key" onclick="pressDigit('6')">6</button>
+
+                <!-- Row 3 -->
+                <button class="btn-key" onclick="pressDigit('7')">7</button>
+                <button class="btn-key" onclick="pressDigit('8')">8</button>
+                <button class="btn-key" onclick="pressDigit('9')">9</button>
+
+                <!-- Row 4 -->
+                <button class="btn-key btn-action-clear" onclick="pressClear()">C</button>
+                <button class="btn-key" onclick="pressDigit('0')">0</button>
+                <button class="btn-key btn-action-del" onclick="pressDelete()">DEL</button>
+            </div>
+
+            <!-- Big Search Button -->
+            <button class="btn-search-primary" onclick="executeSearch()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>SEARCH</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        let currentInput = "";
+        
+        // Fast Index Map: Key = suffix (lowercase), Value = { fullTid, fullOid }
+        let suffixLookupMap = new Map();
+        let totalRecords = 0;
+
+        /**
+         * Keypad Event Handlers
+         */
+        function pressDigit(val) {
+            switchToView('typing');
+            if (currentInput.length < 18) {
+                currentInput += val;
+                updateDisplay();
+            }
+        }
+
+        function pressDelete() {
+            switchToView('typing');
+            currentInput = currentInput.slice(0, -1);
+            updateDisplay();
+        }
+
+        function pressClear() {
+            currentInput = "";
+            clearBarcodeDOM(); // Memory cleanup
+            switchToView('typing');
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            const digitContainer = document.getElementById('typed-digits');
+            const placeholder = document.getElementById('placeholder-hint');
+            
+            digitContainer.innerText = currentInput;
+            
+            if (currentInput.length > 0) {
+                placeholder.classList.add('hidden');
+            } else {
+                placeholder.classList.remove('hidden');
+            }
+
+            if (currentInput.length > 12) {
+                digitContainer.style.fontSize = "1.6rem";
+            } else if (currentInput.length > 8) {
+                digitContainer.style.fontSize = "2rem";
+            } else {
+                digitContainer.style.fontSize = "2.25rem";
+            }
+        }
+
+        /**
+         * Clear DOM SVG for Barcode to prevent Browser Memory Leaks
+         */
+        function clearBarcodeDOM() {
+            const svg = document.getElementById('barcode-svg');
+            if (svg) {
+                while (svg.firstChild) {
+                    svg.removeChild(svg.firstChild);
+                }
+                svg.removeAttribute("width");
+                svg.removeAttribute("height");
+                svg.removeAttribute("viewBox");
+            }
+        }
+
+        /**
+         * File Parsing & Fast Suffix Indexing (O(1) Search Speed)
+         */
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const statusText = document.getElementById('upload-status-text');
+            statusText.innerText = "Reading...";
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rawRows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+
+                    if (!rawRows || rawRows.length === 0) {
+                        statusText.innerText = "Empty";
+                        suffixLookupMap.clear();
+                        showErrorState("The uploaded file contains no data rows.");
+                        return;
+                    }
+
+                    // Identify Columns
+                    const keys = Object.keys(rawRows[0]);
+                    const colTid = keys.find(k => {
+                        const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return norm.includes('trackingid') || norm.includes('tracking') || norm === 'tid';
+                    });
+                    const colOid = keys.find(k => {
+                        const norm = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                        return norm.includes('orderid') || norm.includes('order') || norm === 'oid';
+                    });
+
+                    if (!colTid || !colOid) {
+                        statusText.innerText = "Col Error";
+                        showErrorState("Could not find 'Tracking Id' and 'Order Id' columns.");
+                        return;
+                    }
+
+                    // Build Suffix Index Map for Instant O(1) Search
+                    suffixLookupMap.clear();
+                    totalRecords = rawRows.length;
+
+                    for (let i = 0; i < rawRows.length; i++) {
+                        const row = rawRows[i];
+                        const tid = String(row[colTid] || "").trim();
+                        const oid = String(row[colOid] || "").trim();
+                        if (!tid) continue;
+
+                        const cleanTid = tid.toLowerCase();
+                        const record = { fullTid: tid, fullOid: oid };
+
+                        // Index all suffixes from 2 digits up to full length
+                        for (let len = 2; len <= cleanTid.length; len++) {
+                            const suffix = cleanTid.slice(-len);
+                            if (!suffixLookupMap.has(suffix)) {
+                                suffixLookupMap.set(suffix, record);
+                            }
+                        }
+                    }
+
+                    statusText.innerText = `✓ ${totalRecords.toLocaleString()} Loaded`;
+                    showErrorState(""); 
+                    switchToView('typing');
+
+                } catch (err) {
+                    console.error(err);
+                    statusText.innerText = "Error";
+                    suffixLookupMap.clear();
+                    showErrorState("Failed to parse file. Upload valid Excel or CSV.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        /**
+         * Ultra-fast Search Execution
+         */
+        function executeSearch() {
+            if (suffixLookupMap.size === 0) {
+                showErrorState("Please load an Excel or CSV file first.");
+                return;
+            }
+
+            const query = currentInput.trim().toLowerCase();
+            if (!query) {
+                showErrorState("Type digits on keypad before searching.");
+                return;
+            }
+
+            // O(1) Instant Lookup
+            const match = suffixLookupMap.get(query);
+
+            if (match) {
+                displaySearchResult(match.fullTid, match.fullOid);
+            } else {
+                showErrorState(`No match found ending in "${currentInput}"`);
+            }
+        }
+
+        /**
+         * Render Barcode + Order ID
+         */
+        function displaySearchResult(fullTid, fullOid) {
+            switchToView('result');
+            clearBarcodeDOM(); // Wipe memory before drawing new SVG
+
+            try {
+                JsBarcode("#barcode-svg", fullTid, {
+                    format: "CODE128",
+                    lineColor: "#0f172a",
+                    width: 2,
+                    height: 45,
+                    displayValue: true,
+                    fontSize: 12,
+                    font: "Roboto",
+                    margin: 2,
+                    background: "#ffffff"
+                });
+            } catch (err) {
+                console.error("Barcode generation error:", err);
+            }
+
+            const last6Oid = fullOid.length >= 6 ? fullOid.slice(-6) : fullOid;
+
+            document.getElementById('res-order-last6').innerText = last6Oid;
+            document.getElementById('res-full-tid').innerText = fullTid;
+            document.getElementById('res-full-oid').innerText = fullOid;
+        }
+
+        /**
+         * View Switcher
+         */
+        function switchToView(viewName) {
+            const typingView = document.getElementById('view-typing');
+            const resultView = document.getElementById('view-result');
+            const errorView = document.getElementById('view-error');
+
+            typingView.classList.add('hidden');
+            resultView.classList.add('hidden');
+            resultView.classList.remove('flex');
+            errorView.classList.add('hidden');
+            errorView.classList.remove('flex');
+
+            if (viewName === 'typing') {
+                typingView.classList.remove('hidden');
+            } else if (viewName === 'result') {
+                resultView.classList.remove('hidden');
+                resultView.classList.add('flex');
+            } else if (viewName === 'error') {
+                errorView.classList.remove('hidden');
+                errorView.classList.add('flex');
+            }
+        }
+
+        function showErrorState(message) {
+            if (!message) return;
+            document.getElementById('error-message-text').innerText = message;
+            switchToView('error');
+        }
+    </script>
+</body>
+</html>
